@@ -2,6 +2,7 @@ FROM ubuntu:18.04 as slurm-build
 
 CMD ["/bin/bash"]
 ENV DEBIAN_FRONTEND=noninteractive
+ENV SLURM_VER=23-02-6-1
 # Install all base dependencies
 RUN apt-get update && apt install sudo git gcc make ruby ruby-dev python3 \
     libpam0g-dev libmariadb-client-lgpl-dev libmysqlclient-dev wget vim curl -y
@@ -36,10 +37,11 @@ RUN make -j
 RUN make install
 
 WORKDIR /storage
-RUN wget https://download.schedmd.com/slurm/slurm-21.08.5.tar.bz2
-RUN tar xf slurm-21.08.5.tar.bz2
-#RUN ls /storage/slurm-21.08.5/configure
-WORKDIR /storage/slurm-21.08.5
+RUN wget https://github.com/SchedMD/slurm/archive/refs/tags/slurm-${SLURM_VER}.tar.gz
+RUN tar xf slurm-${SLURM_VER}.tar.gz
+RUN ls /storage
+WORKDIR /storage/slurm-slurm-${SLURM_VER}
+RUN pwd
 
 RUN ./configure --prefix=/storage/slurm-build --sysconfdir=/etc/slurm --enable-pam \
     --with-pam_dir=/lib/x86_64-linux-gnu/security/ --without-shared-libslurm \
@@ -51,11 +53,14 @@ RUN make contrib
 RUN make install
 
 WORKDIR /storage
-RUN fpm -s dir -t deb -v 1.0 -n slurm-21.08.5 --prefix=/usr -C /storage/slurm-build .
-
+RUN fpm -s dir -t deb -v 1.0 -n slurm-${SLURM_VER} --prefix=/usr -C /storage/slurm-build .
 # END of slurm and jwt build
+
+
 # STEP 2 may need some apt-get installs
 FROM ubuntu:18.04
+
+ENV SLURM_VER=23-02-6-1
 
 # Install all base dependencies
 RUN apt-get update && apt install sudo git gcc make ruby ruby-dev python3 \
@@ -66,8 +71,8 @@ RUN apt-get install cmake libhttp-parser-dev libyaml-dev libjson-c-dev -y
 RUN apt-get install -y libjansson-dev
 
 # extract and install slurm+jwt
-COPY --from=slurm-build /storage/slurm-21.08.5_1.0_amd64.deb ./
-RUN dpkg -i slurm-21.08.5_1.0_amd64.deb && rm -rf slurm-21.08.5_1.0_amd64.deb
+COPY --from=slurm-build /storage/slurm-${SLURM_VER}_1.0_amd64.deb ./
+RUN dpkg -i slurm-${SLURM_VER}_1.0_amd64.deb && rm -rf slurm-${SLURM_VER}_1.0_amd64.deb
 
 ## Install munge
 RUN apt-get install libmunge-dev libmunge2 munge -y
